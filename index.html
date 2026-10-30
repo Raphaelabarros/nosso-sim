@@ -254,7 +254,7 @@ const Sync={cfg:null,state:'off',msg:'Local',timer:null,busy:false,again:false,l
   paint(){const d=$('#syncDot'),t=$('#syncTxt');if(!d)return;d.className='dot '+({ok:'ok',busy:'warn',err:'bad',pend:'warn'}[this.state]||'');
     t.textContent=this.state==='off'?'Local':this.state==='busy'?'Sincronizando':this.state==='err'?'Erro':this.state==='pend'?'Pendente':'Sincronizado'},
   schedule(){if(!this.cfg)return;this.state='pend';this.paint();clearTimeout(this.timer);this.timer=setTimeout(()=>this.run(),1500)},
-  api(path,opt={}){const c=this.cfg;return fetch(`https://api.github.com/repos/${encodeURIComponent(c.owner)}/${encodeURIComponent(c.repo)}/${path}`,{...opt,cache:'no-store',headers:{'Authorization':'Bearer '+c.token,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28',...(opt.headers||{})}})},
+  api(path,opt={}){const c=this.cfg;return fetch(`https://api.github.com/repos/${encodeURIComponent(c.owner)}/${encodeURIComponent(c.repo)}${path?'/'+path:''}`,{...opt,cache:'no-store',headers:{'Authorization':'Bearer '+c.token,'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28',...(opt.headers||{})}})},
   b64e(s){const b=new TextEncoder().encode(s);let x='';for(let i=0;i<b.length;i+=0x8000)x+=String.fromCharCode.apply(null,b.subarray(i,i+0x8000));return btoa(x)},
   b64d(s){const x=atob(s.replace(/\n/g,''));const b=new Uint8Array(x.length);for(let i=0;i<x.length;i++)b[i]=x.charCodeAt(i);return new TextDecoder().decode(b)},
   async pull(){const c=this.cfg;const r=await this.api(`contents/${c.path||'dados.json'}?ref=${encodeURIComponent(c.branch||'main')}`);
@@ -557,12 +557,12 @@ function vSync(v){const c=Sync.cfg||{owner:'',repo:'casamento-dados',branch:'mai
    <div id="expOut"></div></div>
   <h2 class="sec">Aparelho</h2>
   <div class="card stack"><div class="small muted">Apaga os dados guardados neste aparelho. Use só se for configurar de novo puxando do GitHub.</div><div class="btns"><button class="btn danger sm" id="wipe">Apagar dados deste aparelho</button></div><div id="wipeC"></div></div>`;
-  $('#sf').onsubmit=async e=>{e.preventDefault();const cfg={owner:$('#s_owner').value.trim(),repo:$('#s_repo').value.trim(),branch:$('#s_branch').value.trim()||'main',token:$('#s_token').value.trim(),path:'dados.json'};
+  $('#sf').onsubmit=async e=>{e.preventDefault();const cfg={owner:$('#s_owner').value.trim(),repo:$('#s_repo').value.trim(),branch:$('#s_branch').value.trim()||'main',token:$('#s_token').value.replace(/\s+/g,''),path:'dados.json'};
     const out=$('#sres');if(!cfg.owner||!cfg.repo||!cfg.token){out.textContent='Preencha usuário, repositório e token.';return}
     out.textContent='Testando…';const old=Sync.cfg;Sync.cfg=cfg;
     try{const r=await Sync.api('');if(r.status===401)throw new Error('Token inválido ou vencido.');if(r.status===404)throw new Error('Repositório não encontrado. Confira o nome e se o token dá acesso a ele.');if(!r.ok)throw new Error('GitHub respondeu '+r.status+'.');
       Sync.saveCfg(cfg);out.innerHTML='<span style="color:var(--ok);font-weight:700">Conectado!</span>';await Sync.run(true)}
-    catch(err){Sync.cfg=old;out.innerHTML=`<span style="color:var(--bad)">${esc(err.message==='Failed to fetch'?'Não foi possível falar com o GitHub. Confira a internet. (Na prévia do Claude a sincronização não funciona; use a versão do GitHub Pages.)':err.message)}</span>`}};
+    catch(err){Sync.cfg=old;out.innerHTML=`<span style="color:var(--bad)">${esc(/fetch|network|load failed/i.test(err.message)?(/claude\.ai|claudeusercontent/.test(location.hostname)?'Esta é a prévia do Claude, onde a sincronização não funciona. Abra raphaelabarros.github.io/nosso-sim para configurar.':'Não foi possível falar com o GitHub. Confira a internet e se o token foi colado inteiro, sem espaços.'):err.message)}</span>`}};
   if($('#syncNow'))$('#syncNow').onclick=()=>Sync.run(true);
   if($('#syncOff'))$('#syncOff').onclick=()=>{Sync.saveCfg(null);render()};
   $('#exp').onclick=()=>{const txt=JSON.stringify(S,null,1);let ok=false;
