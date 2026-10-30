@@ -334,8 +334,9 @@ function closeSheet(){$('#sheetRoot').innerHTML=''}
 function sheet(html,onMount){const root=$('#sheetRoot');root.innerHTML=`<div class="scrim" id="scrim"><div class="sheet" role="dialog" aria-modal="true"><div class="grab"></div>${html}</div></div>`;
   $('#scrim').addEventListener('click',e=>{if(e.target.id==='scrim')closeSheet()});onMount&&onMount(root)}
 /* fields: [{k,l,t:'text|money|number|select|date|month|time|textarea|cb|url|tel',o:[...],half}] */
-function form({title,fields,rec={},onSave,onDelete,extra=''}){
+function form({title,fields,rec={},onSave,onDelete,extra='',onMount}){
   const fh=f=>{const v=rec[f.k];const id='f_'+f.k;
+    if(f.t==='head')return`<div style="margin:16px 0 8px"><div class="lbl">${esc(f.l)}</div>${f.hint?`<div class="tiny muted" style="margin-top:2px">${esc(f.hint)}</div>`:''}</div>`;
     if(f.t==='cb')return`<div class="f cb"><input type="checkbox" id="${id}" ${v?'checked':''}><label for="${id}" style="font-size:14px;color:var(--ink)">${esc(f.l)}</label></div>`;
     let inp;
     if(f.t==='select')inp=`<select id="${id}">${f.o.map(o=>{const[val,lab]=Array.isArray(o)?o:[o,o];return`<option value="${esc(val)}" ${String(v??'')===String(val)?'selected':''}>${esc(lab)}</option>`}).join('')}</select>`;
@@ -348,11 +349,12 @@ function form({title,fields,rec={},onSave,onDelete,extra=''}){
   fields.forEach(f=>{if(f.half){half.push(fh(f));if(half.length===2)flush()}else{flush();body+=fh(f)}});flush();
   sheet(`<h3>${esc(title)}</h3><form id="frm">${body}${extra}<div class="btns"><button class="btn" type="submit">Salvar</button><button class="btn sec" type="button" id="cancel">Cancelar</button>${onDelete?'<button class="btn danger" type="button" id="del" style="margin-left:auto">Excluir</button>':''}</div><div id="cfm"></div></form>`,()=>{
     $('#cancel').onclick=closeSheet;
-    $('#frm').onsubmit=e=>{e.preventDefault();const out={};fields.forEach(f=>{const el=$('#f_'+f.k);
+    $('#frm').onsubmit=e=>{e.preventDefault();const out={};fields.filter(f=>f.t!=='head').forEach(f=>{const el=$('#f_'+f.k);
       out[f.k]=f.t==='cb'?el.checked:f.t==='money'?parseMoney(el.value):f.t==='number'?(el.value===''?null:Number(el.value)):el.value.trim()});
       onSave(out);closeSheet();render()};
     if(onDelete)$('#del').onclick=()=>{$('#cfm').innerHTML=`<div class="confirm">Excluir de vez? <div class="btns"><button class="btn danger sm" type="button" id="del2">Sim, excluir</button><button class="btn sec sm" type="button" id="del3">Não</button></div></div>`;
       $('#del2').onclick=()=>{onDelete();closeSheet();render();toast('Excluído')};$('#del3').onclick=()=>$('#cfm').innerHTML=''};
+    onMount&&onMount();
   })}
 function editGeneric(col,title,fields,id,defaults={}){const r=id?findRec(col,id):null;
   form({title:(r?'Editar ':'Novo ')+title,fields,rec:r||defaults,onSave:v=>{if(r){Object.assign(r,v);touch(r);save()}else addRec(col,{...defaults,...v})},onDelete:r?()=>delRec(col,r.id):null})}
@@ -426,7 +428,7 @@ function vInicio(v){
     ${lua?`<div class="small muted">Lua de mel (à parte): <b class="num" style="color:var(--ink)">${brl(lua)}</b></div>`:''}
   </div>
 
-  <div class="grouphead"><span class="g">Próximos pagamentos</span><button class="chip" data-go="financas" data-fin="mes">Ver por mês</button></div>
+  <div class="grouphead"><span class="g">Próximos pagamentos</span><span class="row" style="gap:6px"><button class="chip" data-reg="1">+ Registrar pagamento</button><button class="chip" data-go="financas" data-fin="mes">Ver por mês</button></span></div>
   <div class="list">${pend.slice(0,6).map(({i,p})=>`<div class="li">${chkPay(p,`data-paypay="${i.id}|${p.id}"`)}
      <div class="grow"><div class="t ellip">${esc(i.nome)}</div><div class="tiny muted">${esc(i.fornecedor||i.categoria)}</div></div>
      <div class="right"><div class="num" style="font-weight:700">${brl(p.valor)}</div><span class="pill ${p.guardado?'p-save':p.mes&&p.mes<tm?'p-bad':p.mes===tm?'p-warn':'p-mute'}">${p.guardado?'Guardado · ':p.mes&&p.mes<tm?'Atrasado · ':''}${mesLabel(p.mes)}</span></div></div>`).join('')||'<div class="empty">Nenhum pagamento pendente programado.</div>'}</div>
@@ -442,22 +444,52 @@ function vInicio(v){
   </div></div>`;
 }
 
+const addMonth=(m,n)=>{let[y,mm]=m.split('-').map(Number);mm+=n;y+=Math.floor((mm-1)/12);mm=((mm-1)%12+12)%12+1;return y+'-'+String(mm).padStart(2,'0')};
+const lastPaid=i=>(i.pagamentos||[]).filter(p=>p.pago).sort((a,b)=>(a.mes||'').localeCompare(b.mes||'')).pop();
+const STATUS_O=[['pago','Pago'],['guardado','Guardado (vou pagar)'],['pendente','Pendente']];
+function setStatus(p,st){p.pago=st==='pago';p.guardado=st==='guardado'}
+function registrar(itemId,after){
+  const its=S.itens.slice().sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
+  if(!its.length){toast('Cadastre um gasto primeiro');return}
+  const sugest=id=>{const i=findRec('itens',id);const tm=thisMonth();if(!i)return null;
+    const pend=(i.pagamentos||[]).find(p=>!p.pago&&p.mes===tm);if(pend)return pend.valor;
+    const lp=lastPaid(i);if(lp)return lp.valor;const f=Math.max(0,(i.valor||0)-pagoItem(i));return f||null};
+  const id0=itemId||its[0].id;
+  form({title:'Registrar pagamento',rec:{item:id0,mes:thisMonth(),valor:sugest(id0),status:'pago'},
+    fields:[...(itemId?[]:[{k:'item',l:'Fornecedor / gasto',t:'select',o:its.map(i=>[i.id,i.nome+(i.fornecedor?' · '+i.fornecedor:'')])}]),
+      {k:'mes',l:'Mês',t:'month',half:1},{k:'valor',l:'Valor',t:'money',half:1},{k:'status',l:'Situação',t:'select',o:STATUS_O},{k:'obs',l:'Observação (Pix, cartão, etc.)'}],
+    onMount:()=>{const sel=$('#f_item');if(sel)sel.onchange=()=>{const v=sugest(sel.value);$('#f_valor').value=fmtMoneyIn(v)}},
+    onSave:v=>{const i=findRec('itens',itemId||v.item);if(!i||!v.valor)return;i.pagamentos=i.pagamentos||[];
+      const ex=i.pagamentos.find(p=>!p.pago&&p.mes===v.mes);
+      if(ex){ex.valor=v.valor;setStatus(ex,v.status);if(v.obs)ex.obs=v.obs}
+      else{const p={id:uid(),mes:v.mes,valor:v.valor,obs:v.obs||''};setStatus(p,v.status);i.pagamentos.push(p)}
+      touch(i);save();toast(v.status==='pago'?'Pagamento registrado':'Parcela registrada');after&&setTimeout(after,0)}})}
 function itemSheet(id){
   const i=id?findRec('itens',id):null;
   const cats=[...new Set(S.itens.map(x=>x.categoria).filter(Boolean))];
-  if(!i){form({title:'Novo gasto',fields:[{k:'nome',l:'Item'},{k:'categoria',l:'Categoria',list:cats},{k:'fornecedor',l:'Fornecedor',half:1},{k:'valor',l:'Valor total',t:'money',half:1},{k:'link',l:'Link',t:'url'},{k:'obs',l:'Observação',t:'textarea'}],
-    onSave:v=>{if(!v.nome)return;addRec('itens',{...v,pagamentos:[]})}});return}
+  if(!i){const tm=thisMonth();form({title:'Novo gasto',rec:{mesSinal:tm,sinalPago:true,mesResto:addMonth(tm,1),nResto:1},
+    fields:[{k:'nome',l:'Item (ex.: Buffet, Fotógrafo)'},{k:'categoria',l:'Categoria',list:cats},{k:'fornecedor',l:'Fornecedor',half:1},{k:'valor',l:'Valor total',t:'money',half:1},
+      {k:'h1',l:'Sinal',t:'head',hint:'Deixe em branco se não teve sinal.'},{k:'sinal',l:'Valor do sinal',t:'money',half:1},{k:'mesSinal',l:'Mês do sinal',t:'month',half:1},{k:'sinalPago',l:'Sinal já foi pago',t:'cb'},
+      {k:'h2',l:'Restante',t:'head',hint:'O app calcula o restante (total menos o sinal).'},{k:'mesResto',l:'Pagar o resto a partir de',t:'month',half:1},{k:'nResto',l:'Em quantas vezes',t:'number',half:1},{k:'restoGuardado',l:'Já tenho o resto guardado',t:'cb'},
+      {k:'link',l:'Link',t:'url'},{k:'obs',l:'Observação',t:'textarea'}],
+    onSave:v=>{if(!v.nome)return;const pg=[];const total=v.valor||0,sinal=v.sinal||0;
+      if(sinal)pg.push({id:uid(),mes:v.mesSinal||tm,valor:sinal,pago:!!v.sinalPago,guardado:false,obs:'Sinal'});
+      const resto=Math.round((total-sinal)*100)/100,n=Math.max(1,Math.min(48,parseInt(v.nResto)||1));
+      if(resto>0&&v.mesResto){const base=Math.floor(resto/n*100)/100;for(let k=0;k<n;k++){const val=k===n-1?Math.round((resto-base*(n-1))*100)/100:base;
+        pg.push({id:uid(),mes:addMonth(v.mesResto,k),valor:val,pago:false,guardado:!!v.restoGuardado,obs:n>1?`Parcela ${k+1}/${n}`:'Restante'})}}
+      addRec('itens',{nome:v.nome,categoria:v.categoria,fornecedor:v.fornecedor,valor:v.valor,link:v.link,obs:v.obs,pagamentos:pg});toast('Gasto adicionado')}});return}
   const draw=()=>{const pago=pagoItem(i),gd=guardItem(i),prog=progItem(i);const tm=thisMonth();
     sheet(`<div class="row" style="align-items:flex-start"><div class="grow"><div class="lbl">${esc(i.categoria)}</div><h3 style="margin:2px 0 4px">${esc(i.nome)}</h3><div class="small muted">${esc(i.fornecedor||'Sem fornecedor')}</div></div><button class="ic" id="ied" aria-label="Editar">${svg('edit')}</button></div>
      <dl class="kv card" style="margin:12px 0"><dt>Valor total</dt><dd class="num">${brl(i.valor)}</dd><dt>Pago</dt><dd class="num" style="color:var(--ok)">${brl(pago)}</dd><dt>Guardado</dt><dd class="num" style="color:var(--ok)">${brl(gd)}</dd><dt>Falta guardar</dt><dd class="num" style="color:var(--accent)">${brl(Math.max(0,(i.valor||0)-pago-gd))}</dd>${i.valor&&Math.abs(i.valor-prog)>0.009?`<dt>Sem parcela programada</dt><dd class="num">${brl((i.valor||0)-prog)}</dd>`:''}</dl>
      ${i.link?`<div class="small" style="margin-bottom:10px"><a href="${esc(i.link)}" target="_blank" rel="noopener">Abrir link do produto</a></div>`:''}
      ${i.obs?`<div class="small muted pre" style="margin-bottom:10px">${esc(i.obs)}</div>`:''}
-     <div class="grouphead" style="margin-top:6px"><span class="g" style="font-size:18px">Parcelas</span><button class="btn sm" id="addp">+ Parcela</button></div>
+     <div class="grouphead" style="margin-top:6px"><span class="g" style="font-size:18px">Parcelas</span><span class="row" style="gap:6px"><button class="btn sec sm" id="addp">+ Programar</button><button class="btn sm" id="regp">Registrar pagamento</button></span></div>
      <div class="list">${(i.pagamentos||[]).slice().sort((a,b)=>(a.mes||'').localeCompare(b.mes||'')).map(p=>`<div class="li ${p.pago?'done':''}">${chkPay(p,`data-tp="${p.id}"`)}<div class="grow"><div class="t num">${brl(p.valor)}</div><div class="tiny muted">${mesLongo(p.mes)}${p.obs?' · '+esc(p.obs):''}</div></div>${!p.pago&&p.guardado?'<span class="pill p-save">Guardado</span>':!p.pago&&p.mes&&p.mes<tm?'<span class="pill p-bad">Atrasado</span>':''}<button class="ic" data-ep="${p.id}" aria-label="Editar parcela">${svg('edit')}</button></div>`).join('')||'<div class="empty small">Nenhuma parcela. Adicione as parcelas para acompanhar o que já pagou.</div>'}</div>
      <div class="btns" style="margin-top:14px"><button class="btn sec full" id="fech">Fechar</button></div>`,root=>{
       $('#fech').onclick=()=>{closeSheet();render()};
       $('#ied').onclick=()=>form({title:'Editar gasto',rec:i,fields:[{k:'nome',l:'Item'},{k:'categoria',l:'Categoria',list:cats},{k:'fornecedor',l:'Fornecedor',half:1},{k:'valor',l:'Valor total',t:'money',half:1},{k:'link',l:'Link',t:'url'},{k:'obs',l:'Observação',t:'textarea'}],onSave:v=>{Object.assign(i,v);touch(i);save()},onDelete:()=>delRec('itens',i.id)});
       $('#addp').onclick=()=>parc(null);
+      $('#regp').onclick=()=>registrar(i.id,draw);
       root.querySelectorAll('[data-tp]').forEach(b=>b.onclick=()=>{const p=i.pagamentos.find(x=>x.id===b.dataset.tp);toast(cyclePay(p));touch(i);save();draw()});
       root.querySelectorAll('[data-ep]').forEach(b=>b.onclick=()=>parc(b.dataset.ep));
     })};
@@ -471,6 +503,7 @@ function itemSheet(id){
 function vFin(v){
   const f=fin();const tm=thisMonth();
   let html=`<div class="card stack" style="margin-top:4px"><div class="row"><div class="grow"><div class="lbl">Contratado</div><div class="num" style="font-size:22px;font-weight:700">${brl(f.total)}</div></div></div><div class="tiles"><div><div class="lbl">Pago</div><div class="num" style="font-weight:700">${brl(f.pago)}</div></div><div><div class="lbl">Guardado</div><div class="num" style="font-weight:700;color:var(--ok)">${brl(f.guardado)}</div></div><div><div class="lbl">Falta guardar</div><div class="num" style="font-weight:700;color:var(--accent)">${brl(f.faltaGuardar)}</div></div></div>${stackBar(f.total,f.pago,f.guardado)}${LEG}</div>
+  <div class="btns" style="margin-top:10px"><button class="btn sm" data-reg="1">+ Registrar pagamento</button><button class="btn sec sm" data-newitem="1">+ Novo fornecedor / gasto</button></div>
   <div class="seg"><button data-fin="cat" class="${sub.fin==='cat'?'on':''}">Por categoria</button><button data-fin="mes" class="${sub.fin==='mes'?'on':''}">Por mês</button></div>`;
   if(sub.fin==='cat'){
     const groups=new Map();S.itens.forEach(i=>{const k=i.categoria||'Sem categoria';if(!groups.has(k))groups.set(k,[]);groups.get(k).push(i)});
@@ -641,6 +674,8 @@ document.addEventListener('click',e=>{const t=e.target.closest('button,[data-go]
   if(d.fo){sub.forn=d.fo;persistUi();render();return}
   if(d.cf){sub.conv=d.cf;render();return}
   if(d.paypay){const[iid,pid]=d.paypay.split('|');const i=findRec('itens',iid);const p=i&&i.pagamentos.find(x=>x.id===pid);if(p){const m=cyclePay(p);touch(i);save();render();toast(m)}return}
+  if(d.reg){registrar(null);return}
+  if(d.newitem){itemSheet(null);return}
   if(d.item){itemSheet(d.item);return}
   if(d.tg){const[k,id]=d.tg.split('|');const r=findRec('convidados',id);r[k]=!r[k];touch(r);save();render();return}
   if(d.rs){const r=findRec('convidados',d.rs);r.rsvp={pendente:'sim',sim:'nao',nao:'pendente'}[r.rsvp||'pendente'];touch(r);save();render();return}
