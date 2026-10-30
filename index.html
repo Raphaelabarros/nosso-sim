@@ -163,6 +163,44 @@ a{color:var(--primary)}
 .day{border-left:3px solid var(--accent);padding-left:12px}
 .pre{white-space:pre-wrap}
 .best{outline:2px solid var(--ok);outline-offset:-2px}
+/* Computador: barra lateral no lugar das abas, conteúdo largo, grupos em duas colunas, edição em janela central */
+@media (min-width:900px){
+  body{padding-left:calc(232px + 32px);padding-right:max(32px,env(safe-area-inset-right,0px))}
+  .wrap{max-width:1120px;padding-block:0 48px}
+  header.top{padding-block:22px 14px}
+  header.top h1{font-size:30px}
+  nav.tabs{top:0;bottom:0;right:auto;width:232px;border-top:0;border-right:1px solid var(--line);padding:22px 14px}
+  nav.tabs .in{display:flex;flex-direction:column;gap:4px;max-width:none;margin:0}
+  nav.tabs .in::before{content:"R&R Nosso Sim";font-family:var(--f-display);font-size:24px;font-weight:600;padding:0 12px 18px;color:var(--primary)}
+  nav.tabs button{flex-direction:row;justify-content:flex-start;gap:12px;font-size:14px;padding:11px 12px;border-radius:10px}
+  nav.tabs button.on{background:var(--soft)}
+  .fab{right:40px;bottom:32px}
+  .hero{padding:30px 32px}
+  .hero .names{font-size:46px}
+  .hero .count b{font-size:72px}
+  .cols{display:grid;grid-template-columns:1.25fr 1fr;gap:28px;align-items:start}
+  .col{min-width:0}
+  .masonry{columns:2;column-gap:24px}
+  .grp{break-inside:avoid;display:block;padding-bottom:4px}
+  .grp .grouphead{margin-top:14px}
+  .tiles{gap:12px}
+  .tile{padding:14px}
+  .v-financas>.card:first-child,.v-checklist>.card:first-child{max-width:640px}
+  .v-convidados .list{display:grid;grid-template-columns:1fr 1fr;column-gap:0}
+  .v-convidados .list .li{border-top:1px solid var(--line)}
+  .v-convidados .list .li:nth-child(-n+2){border-top:0}
+  .v-convidados .list .li:nth-child(odd){border-right:1px solid var(--line)}
+  .v-convidados .tiles,.v-convidados .search{max-width:640px}
+  .v-fornecedores .stack,.v-notas .stack{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+  .v-dados .card,.v-dados .btns,.v-sync>*{max-width:720px}
+  .v-mais .list{max-width:640px}
+  .seg{max-width:420px}
+  .scrim{align-items:center;padding:24px}
+  .sheet{border-radius:18px;max-height:88vh;padding:12px 24px 24px;animation:none}
+  .grab{display:none}
+  .toast{bottom:40px}
+  .li.tap:hover,.tile:hover{background:var(--soft)}
+}
 </style>
 
 </head>
@@ -335,7 +373,17 @@ function render(){
   $('#ttl').innerHTML=isSub?esc(TITLES[route]||''):'<span class="amp">R&amp;R</span> Nosso Sim';
   const fab=$('#fab');fab.hidden=!['financas','convidados','checklist','fornecedores','cerimonia','lua','notas'].includes(route);
   const v=$('#view');
+  v.className='v-'+route;
   ({inicio:vInicio,financas:vFin,convidados:vConv,checklist:vCheck,mais:vMais,fornecedores:vForn,cerimonia:vCer,lua:vLua,notas:vNotas,dados:vDados,sync:vSync}[route]||vInicio)(v);
+  groupify(v);
+}
+function groupify(v){
+  const kids=[...v.children];let grp=null,mas=null;
+  for(const el of kids){
+    if(el.classList.contains('grouphead')){if(!mas){mas=document.createElement('div');mas.className='masonry';v.insertBefore(mas,el)}grp=document.createElement('div');grp.className='grp';mas.appendChild(grp);grp.appendChild(el);continue}
+    if(el.matches('h2.sec')){grp=null;mas=null;continue}
+    if(grp)grp.appendChild(el)
+  }
 }
 function go(r){route=r;try{if(location.hash!=='#'+r)history.replaceState(null,'','#'+r)}catch(e){}window.scrollTo(0,0);render()}
 
@@ -358,7 +406,7 @@ function vInicio(v){
     ${d!=null?`<div class="count"><b class="num">${d>0?d:d===0?'Hoje':'—'}</b><span>${d>0?(d===1?'dia para o sim':'dias para o sim'):d===0?'é o grande dia':'casados!'}</span></div>`:''}
   </section>
 
-  <h2 class="sec">Dinheiro</h2>
+  <div class="cols"><div class="col"><h2 class="sec">Dinheiro</h2>
   <div class="card stack">
     <div class="row"><div class="grow"><div class="lbl">Pago</div><div class="num" style="font-size:24px;font-weight:700">${brl(f.pago)}</div></div>
       <div class="right"><div class="lbl">Falta pagar</div><div class="num" style="font-size:18px;font-weight:700;color:var(--accent)">${brl(f.falta)}</div></div></div>
@@ -372,14 +420,14 @@ function vInicio(v){
      <div class="grow"><div class="t ellip">${esc(i.nome)}</div><div class="tiny muted">${esc(i.fornecedor||i.categoria)}</div></div>
      <div class="right"><div class="num" style="font-weight:700">${brl(p.valor)}</div><span class="pill ${p.mes&&p.mes<tm?'p-bad':p.mes===tm?'p-warn':'p-mute'}">${p.mes&&p.mes<tm?'Atrasado · ':''}${mesLabel(p.mes)}</span></div></div>`).join('')||'<div class="empty">Nenhum pagamento pendente programado.</div>'}</div>
 
-  <h2 class="sec">Resumo</h2>
+  </div><div class="col"><h2 class="sec">Resumo</h2>
   <div class="tiles">
     <button class="tile" data-go="convidados" style="text-align:left"><div class="lbl">Convidados</div><div class="v num">${ativos.length}${c.convidadosContratados?`<span class="muted small" style="font-weight:500"> / ${c.convidadosContratados}</span>`:''}</div><div class="tiny muted">${conf} confirmados</div></button>
     <button class="tile" data-go="convidados" style="text-align:left"><div class="lbl">Save the date</div><div class="v num">${std}</div><div class="tiny muted">de ${cv.length}</div></button>
     <button class="tile" data-go="checklist" style="text-align:left"><div class="lbl">Checklist</div><div class="v num">${chk.length?Math.round(feitos/chk.length*100):0}%</div><div class="tiny muted">${feitos} de ${chk.length}</div></button>
   </div>
   ${extras&&c.valorConvidadoExtra?`<div class="card small" style="margin-top:8px;background:var(--accent-soft);border-color:transparent"><b>${extras} convidado${extras>1?'s':''} além do contratado</b> · custo extra estimado <b class="num">${brl(extras*c.valorConvidadoExtra)}</b> (${brl(c.valorConvidadoExtra)} cada)</div>`:''}
-  `;
+  </div></div>`;
 }
 
 function itemSheet(id){
