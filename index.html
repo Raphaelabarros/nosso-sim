@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="R&amp;R - Nosso Sim">
+<meta name="apple-mobile-web-app-title" content="R&amp;R Nosso Sim">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" href="icon-192.png">
@@ -22,7 +22,7 @@
 :root{
   --bg:#F2F5F3; --surface:#FFFFFF; --ink:#1C2A26; --muted:#5B6C66; --line:#DAE2DE; --soft:#E5EDE9;
   --primary:#2E5B4F; --primary-ink:#FFFFFF; --accent:#A27C34; --accent-soft:#F3EBDA;
-  --ok:#2C7A4B; --ok-soft:#DFF0E5; --warn:#A8701A; --warn-soft:#F6EAD4; --bad:#B03F38; --bad-soft:#F6E1DF;
+  --ok:#2C7A4B; --ok-soft:#DFF0E5; --save:#6DB88A; --save-soft:#DCEFE2; --warn:#A8701A; --warn-soft:#F6EAD4; --bad:#B03F38; --bad-soft:#F6E1DF;
   --shadow:0 1px 2px rgba(20,40,34,.06),0 4px 14px rgba(20,40,34,.06);
   --f-display:"Cormorant Garamond",Georgia,"Times New Roman",serif;
   --f-body:"Figtree",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
@@ -30,12 +30,12 @@
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#111715; --surface:#19221F; --ink:#E6EDE9; --muted:#97A9A2; --line:#2A3632; --soft:#202D29;
   --primary:#86BFAE; --primary-ink:#0E1916; --accent:#D8B66E; --accent-soft:#3A3122;
-  --ok:#6BC28F; --ok-soft:#1D3527; --warn:#E0A957; --warn-soft:#3A2E1A; --bad:#E5847C; --bad-soft:#3D2220;
+  --ok:#6BC28F; --ok-soft:#1D3527; --save:#4E9D6E; --save-soft:#1E3A2A; --warn:#E0A957; --warn-soft:#3A2E1A; --bad:#E5847C; --bad-soft:#3D2220;
   --shadow:0 1px 2px rgba(0,0,0,.3); color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#111715; --surface:#19221F; --ink:#E6EDE9; --muted:#97A9A2; --line:#2A3632; --soft:#202D29;
   --primary:#86BFAE; --primary-ink:#0E1916; --accent:#D8B66E; --accent-soft:#3A3122;
-  --ok:#6BC28F; --ok-soft:#1D3527; --warn:#E0A957; --warn-soft:#3A2E1A; --bad:#E5847C; --bad-soft:#3D2220;
+  --ok:#6BC28F; --ok-soft:#1D3527; --save:#4E9D6E; --save-soft:#1E3A2A; --warn:#E0A957; --warn-soft:#3A2E1A; --bad:#E5847C; --bad-soft:#3D2220;
   --shadow:0 1px 2px rgba(0,0,0,.3); color-scheme:dark}
 *{box-sizing:border-box}
 html,body{background:var(--bg)}
@@ -101,6 +101,10 @@ h2.sec{font-family:var(--f-display);font-size:22px;font-weight:600;margin:22px 0
 .p-acc{background:var(--accent-soft);color:var(--accent)}
 .chk{width:26px;height:26px;border-radius:8px;border:2px solid var(--line);background:var(--surface);display:grid;place-items:center;flex:none;padding:0;color:var(--primary-ink)}
 .chk.on{background:var(--ok);border-color:var(--ok)}
+.chk.sv{background:var(--save-soft);border-color:var(--save);color:var(--ok)}
+.p-save{background:var(--save-soft);color:var(--ok)}
+.bar>b{display:block;height:100%;float:left}
+.legend{display:flex;gap:14px;flex-wrap:wrap}.legend span{display:inline-flex;align-items:center;gap:5px}.legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
 .chk.mid{background:var(--warn-soft);border-color:var(--warn);color:var(--warn)}
 .chk svg{width:14px;height:14px}
 .done .t{text-decoration:line-through;color:var(--muted);font-weight:500}
@@ -354,9 +358,14 @@ function editGeneric(col,title,fields,id,defaults={}){const r=id?findRec(col,id)
   form({title:(r?'Editar ':'Novo ')+title,fields,rec:r||defaults,onSave:v=>{if(r){Object.assign(r,v);touch(r);save()}else addRec(col,{...defaults,...v})},onDelete:r?()=>delRec(col,r.id):null})}
 
 /* ---------- Cálculos ---------- */
+const guardItem=i=>(i.pagamentos||[]).filter(p=>!p.pago&&p.guardado).reduce((s,p)=>s+(p.valor||0),0);
+const chkPay=(p,attr)=>`<button class="chk ${p.pago?'on':p.guardado?'sv':''}" ${attr} aria-label="${p.pago?'Pago':p.guardado?'Dinheiro guardado':'Pendente'}" title="Toque: pendente → guardado → pago">${p.pago?svg('tick',3):p.guardado?'<b style="font-size:13px">$</b>':''}</button>`;
+const cyclePay=p=>{if(p.pago){p.pago=false;p.guardado=false}else if(p.guardado){p.pago=true}else{p.guardado=true}return p.pago?'Marcado como pago':p.guardado?'Dinheiro guardado':'Voltou para pendente'};
+const stackBar=(t,pg,gd,h)=>`<div class="bar" ${h?`style="height:${h}px"`:''}><b style="width:${t?Math.min(100,pg/t*100):0}%;background:var(--primary)"></b><b style="width:${t?Math.min(100,gd/t*100):0}%;background:var(--save)"></b></div>`;
+const LEG='<div class="legend tiny muted"><span><i style="background:var(--primary)"></i>Pago</span><span><i style="background:var(--save)"></i>Guardado</span><span><i style="background:var(--soft);border:1px solid var(--line)"></i>Falta guardar</span></div>';
 const pagoItem=i=>(i.pagamentos||[]).filter(p=>p.pago).reduce((s,p)=>s+(p.valor||0),0);
 const progItem=i=>(i.pagamentos||[]).reduce((s,p)=>s+(p.valor||0),0);
-function fin(){let total=0,pago=0;S.itens.forEach(i=>{total+=i.valor||0;pago+=pagoItem(i)});return{total,pago,falta:Math.max(0,total-pago)}}
+function fin(){let total=0,pago=0,gd=0;S.itens.forEach(i=>{total+=i.valor||0;pago+=pagoItem(i);gd+=guardItem(i)});return{total,pago,guardado:gd,falta:Math.max(0,total-pago),faltaGuardar:Math.max(0,total-pago-gd)}}
 const diasAte=d=>{if(!d)return null;const t=new Date(d+'T00:00:00');const h=new Date();h.setHours(0,0,0,0);return Math.round((t-h)/864e5)};
 const naoVai=c=>c.rsvp==='nao';
 
@@ -408,17 +417,20 @@ function vInicio(v){
 
   <div class="cols"><div class="col"><h2 class="sec">Dinheiro</h2>
   <div class="card stack">
-    <div class="row"><div class="grow"><div class="lbl">Pago</div><div class="num" style="font-size:24px;font-weight:700">${brl(f.pago)}</div></div>
-      <div class="right"><div class="lbl">Falta pagar</div><div class="num" style="font-size:18px;font-weight:700;color:var(--accent)">${brl(f.falta)}</div></div></div>
-    <div class="bar"><i style="width:${f.total?Math.min(100,f.pago/f.total*100):0}%"></i></div>
+    <div class="tiles" style="grid-template-columns:repeat(3,1fr)">
+      <div><div class="lbl">Pago</div><div class="num" style="font-size:18px;font-weight:700">${brl0(f.pago)}</div></div>
+      <div><div class="lbl">Guardado</div><div class="num" style="font-size:18px;font-weight:700;color:var(--ok)">${brl0(f.guardado)}</div></div>
+      <div><div class="lbl">Falta guardar</div><div class="num" style="font-size:18px;font-weight:700;color:var(--accent)">${brl0(f.faltaGuardar)}</div></div></div>
+    ${stackBar(f.total,f.pago,f.guardado)}${LEG}
     <div class="row small muted"><span class="grow">Contratado: <b class="num" style="color:var(--ink)">${brl(f.total)}</b></span>${c.orcamento?`<span>Orçamento: <b class="num" style="color:${f.total>c.orcamento?'var(--bad)':'var(--ink)'}">${brl(c.orcamento)}</b></span>`:''}</div>
     ${lua?`<div class="small muted">Lua de mel (à parte): <b class="num" style="color:var(--ink)">${brl(lua)}</b></div>`:''}
   </div>
 
   <div class="grouphead"><span class="g">Próximos pagamentos</span><button class="chip" data-go="financas" data-fin="mes">Ver por mês</button></div>
-  <div class="list">${pend.slice(0,6).map(({i,p})=>`<div class="li"><button class="chk" data-paypay="${i.id}|${p.id}" aria-label="Marcar como pago"></button>
+  <div class="list">${pend.slice(0,6).map(({i,p})=>`<div class="li">${chkPay(p,`data-paypay="${i.id}|${p.id}"`)}
      <div class="grow"><div class="t ellip">${esc(i.nome)}</div><div class="tiny muted">${esc(i.fornecedor||i.categoria)}</div></div>
-     <div class="right"><div class="num" style="font-weight:700">${brl(p.valor)}</div><span class="pill ${p.mes&&p.mes<tm?'p-bad':p.mes===tm?'p-warn':'p-mute'}">${p.mes&&p.mes<tm?'Atrasado · ':''}${mesLabel(p.mes)}</span></div></div>`).join('')||'<div class="empty">Nenhum pagamento pendente programado.</div>'}</div>
+     <div class="right"><div class="num" style="font-weight:700">${brl(p.valor)}</div><span class="pill ${p.guardado?'p-save':p.mes&&p.mes<tm?'p-bad':p.mes===tm?'p-warn':'p-mute'}">${p.guardado?'Guardado · ':p.mes&&p.mes<tm?'Atrasado · ':''}${mesLabel(p.mes)}</span></div></div>`).join('')||'<div class="empty">Nenhum pagamento pendente programado.</div>'}</div>
+  <div class="tiny muted" style="margin:6px 2px">Toque no quadrado: pendente → guardado ($) → pago.</div>
 
   </div><div class="col"><h2 class="sec">Resumo</h2>
   <div class="tiles">
@@ -435,50 +447,50 @@ function itemSheet(id){
   const cats=[...new Set(S.itens.map(x=>x.categoria).filter(Boolean))];
   if(!i){form({title:'Novo gasto',fields:[{k:'nome',l:'Item'},{k:'categoria',l:'Categoria',list:cats},{k:'fornecedor',l:'Fornecedor',half:1},{k:'valor',l:'Valor total',t:'money',half:1},{k:'link',l:'Link',t:'url'},{k:'obs',l:'Observação',t:'textarea'}],
     onSave:v=>{if(!v.nome)return;addRec('itens',{...v,pagamentos:[]})}});return}
-  const draw=()=>{const pago=pagoItem(i),prog=progItem(i);const tm=thisMonth();
+  const draw=()=>{const pago=pagoItem(i),gd=guardItem(i),prog=progItem(i);const tm=thisMonth();
     sheet(`<div class="row" style="align-items:flex-start"><div class="grow"><div class="lbl">${esc(i.categoria)}</div><h3 style="margin:2px 0 4px">${esc(i.nome)}</h3><div class="small muted">${esc(i.fornecedor||'Sem fornecedor')}</div></div><button class="ic" id="ied" aria-label="Editar">${svg('edit')}</button></div>
-     <dl class="kv card" style="margin:12px 0"><dt>Valor total</dt><dd class="num">${brl(i.valor)}</dd><dt>Pago</dt><dd class="num" style="color:var(--ok)">${brl(pago)}</dd><dt>Saldo</dt><dd class="num" style="color:var(--accent)">${brl(Math.max(0,(i.valor||0)-pago))}</dd>${i.valor&&Math.abs(i.valor-prog)>0.009?`<dt>Sem parcela programada</dt><dd class="num">${brl((i.valor||0)-prog)}</dd>`:''}</dl>
+     <dl class="kv card" style="margin:12px 0"><dt>Valor total</dt><dd class="num">${brl(i.valor)}</dd><dt>Pago</dt><dd class="num" style="color:var(--ok)">${brl(pago)}</dd><dt>Guardado</dt><dd class="num" style="color:var(--ok)">${brl(gd)}</dd><dt>Falta guardar</dt><dd class="num" style="color:var(--accent)">${brl(Math.max(0,(i.valor||0)-pago-gd))}</dd>${i.valor&&Math.abs(i.valor-prog)>0.009?`<dt>Sem parcela programada</dt><dd class="num">${brl((i.valor||0)-prog)}</dd>`:''}</dl>
      ${i.link?`<div class="small" style="margin-bottom:10px"><a href="${esc(i.link)}" target="_blank" rel="noopener">Abrir link do produto</a></div>`:''}
      ${i.obs?`<div class="small muted pre" style="margin-bottom:10px">${esc(i.obs)}</div>`:''}
      <div class="grouphead" style="margin-top:6px"><span class="g" style="font-size:18px">Parcelas</span><button class="btn sm" id="addp">+ Parcela</button></div>
-     <div class="list">${(i.pagamentos||[]).slice().sort((a,b)=>(a.mes||'').localeCompare(b.mes||'')).map(p=>`<div class="li ${p.pago?'done':''}"><button class="chk ${p.pago?'on':''}" data-tp="${p.id}" aria-label="Pago">${p.pago?svg('tick',3):''}</button><div class="grow"><div class="t num">${brl(p.valor)}</div><div class="tiny muted">${mesLongo(p.mes)}${p.obs?' · '+esc(p.obs):''}</div></div>${!p.pago&&p.mes&&p.mes<tm?'<span class="pill p-bad">Atrasado</span>':''}<button class="ic" data-ep="${p.id}" aria-label="Editar parcela">${svg('edit')}</button></div>`).join('')||'<div class="empty small">Nenhuma parcela. Adicione as parcelas para acompanhar o que já pagou.</div>'}</div>
+     <div class="list">${(i.pagamentos||[]).slice().sort((a,b)=>(a.mes||'').localeCompare(b.mes||'')).map(p=>`<div class="li ${p.pago?'done':''}">${chkPay(p,`data-tp="${p.id}"`)}<div class="grow"><div class="t num">${brl(p.valor)}</div><div class="tiny muted">${mesLongo(p.mes)}${p.obs?' · '+esc(p.obs):''}</div></div>${!p.pago&&p.guardado?'<span class="pill p-save">Guardado</span>':!p.pago&&p.mes&&p.mes<tm?'<span class="pill p-bad">Atrasado</span>':''}<button class="ic" data-ep="${p.id}" aria-label="Editar parcela">${svg('edit')}</button></div>`).join('')||'<div class="empty small">Nenhuma parcela. Adicione as parcelas para acompanhar o que já pagou.</div>'}</div>
      <div class="btns" style="margin-top:14px"><button class="btn sec full" id="fech">Fechar</button></div>`,root=>{
       $('#fech').onclick=()=>{closeSheet();render()};
       $('#ied').onclick=()=>form({title:'Editar gasto',rec:i,fields:[{k:'nome',l:'Item'},{k:'categoria',l:'Categoria',list:cats},{k:'fornecedor',l:'Fornecedor',half:1},{k:'valor',l:'Valor total',t:'money',half:1},{k:'link',l:'Link',t:'url'},{k:'obs',l:'Observação',t:'textarea'}],onSave:v=>{Object.assign(i,v);touch(i);save()},onDelete:()=>delRec('itens',i.id)});
       $('#addp').onclick=()=>parc(null);
-      root.querySelectorAll('[data-tp]').forEach(b=>b.onclick=()=>{const p=i.pagamentos.find(x=>x.id===b.dataset.tp);p.pago=!p.pago;touch(i);save();draw()});
+      root.querySelectorAll('[data-tp]').forEach(b=>b.onclick=()=>{const p=i.pagamentos.find(x=>x.id===b.dataset.tp);toast(cyclePay(p));touch(i);save();draw()});
       root.querySelectorAll('[data-ep]').forEach(b=>b.onclick=()=>parc(b.dataset.ep));
     })};
   const parc=pid=>{const p=pid?i.pagamentos.find(x=>x.id===pid):null;
     const falta=Math.max(0,(i.valor||0)-progItem(i));
-    form({title:p?'Editar parcela':'Nova parcela',rec:p||{mes:thisMonth(),valor:falta||null,pago:false},fields:[{k:'mes',l:'Mês',t:'month',half:1},{k:'valor',l:'Valor',t:'money',half:1},{k:'pago',l:'Já foi pago',t:'cb'},{k:'obs',l:'Observação (forma de pagamento, etc.)'}],
+    form({title:p?'Editar parcela':'Nova parcela',rec:p||{mes:thisMonth(),valor:falta||null,pago:false,guardado:false},fields:[{k:'mes',l:'Mês',t:'month',half:1},{k:'valor',l:'Valor',t:'money',half:1},{k:'guardado',l:'Já guardei o dinheiro',t:'cb'},{k:'pago',l:'Já foi pago',t:'cb'},{k:'obs',l:'Observação (forma de pagamento, etc.)'}],
       onSave:v=>{if(p)Object.assign(p,v);else{i.pagamentos=i.pagamentos||[];i.pagamentos.push({id:uid(),...v})}touch(i);save();setTimeout(draw,0)},
       onDelete:p?()=>{i.pagamentos=i.pagamentos.filter(x=>x.id!==pid);touch(i);save();setTimeout(draw,0)}:null})};
   draw()}
 
 function vFin(v){
   const f=fin();const tm=thisMonth();
-  let html=`<div class="card stack" style="margin-top:4px"><div class="row"><div class="grow"><div class="lbl">Contratado</div><div class="num" style="font-size:22px;font-weight:700">${brl(f.total)}</div></div><div class="right"><div class="lbl">Pago</div><div class="num" style="font-weight:700;color:var(--ok)">${brl(f.pago)}</div><div class="lbl" style="margin-top:4px">Falta</div><div class="num" style="font-weight:700;color:var(--accent)">${brl(f.falta)}</div></div></div><div class="bar"><i style="width:${f.total?f.pago/f.total*100:0}%"></i></div></div>
+  let html=`<div class="card stack" style="margin-top:4px"><div class="row"><div class="grow"><div class="lbl">Contratado</div><div class="num" style="font-size:22px;font-weight:700">${brl(f.total)}</div></div></div><div class="tiles"><div><div class="lbl">Pago</div><div class="num" style="font-weight:700">${brl(f.pago)}</div></div><div><div class="lbl">Guardado</div><div class="num" style="font-weight:700;color:var(--ok)">${brl(f.guardado)}</div></div><div><div class="lbl">Falta guardar</div><div class="num" style="font-weight:700;color:var(--accent)">${brl(f.faltaGuardar)}</div></div></div>${stackBar(f.total,f.pago,f.guardado)}${LEG}</div>
   <div class="seg"><button data-fin="cat" class="${sub.fin==='cat'?'on':''}">Por categoria</button><button data-fin="mes" class="${sub.fin==='mes'?'on':''}">Por mês</button></div>`;
   if(sub.fin==='cat'){
     const groups=new Map();S.itens.forEach(i=>{const k=i.categoria||'Sem categoria';if(!groups.has(k))groups.set(k,[]);groups.get(k).push(i)});
     for(const[g,its]of groups){const t=its.reduce((s,i)=>s+(i.valor||0),0),p=its.reduce((s,i)=>s+pagoItem(i),0);
       html+=`<div class="grouphead"><span class="g">${esc(g)}</span><span class="small muted num">${brl0(p)} de ${brl0(t)}</span></div><div class="list">`+
-      its.map(i=>{const pg=pagoItem(i),pct=i.valor?Math.min(100,pg/i.valor*100):0;const st=!i.valor?['p-mute','A definir']:pg>=i.valor-0.009?['p-ok','Quitado']:pg>0?['p-warn','Pagando']:['p-mute','A pagar'];
+      its.map(i=>{const pg=pagoItem(i),gd=guardItem(i);const st=!i.valor?['p-mute','A definir']:pg>=i.valor-0.009?['p-ok','Quitado']:pg+gd>=i.valor-0.009?['p-save','Tudo guardado']:pg>0||gd>0?['p-warn','Pagando']:['p-mute','A pagar'];
         return`<div class="li tap" data-item="${i.id}"><div class="grow"><div class="row"><span class="t grow ellip">${esc(i.nome)}</span><span class="num" style="font-weight:700">${brl0(i.valor)}</span></div>
         <div class="row tiny muted" style="margin-top:3px"><span class="grow ellip">${esc(i.fornecedor||'—')}</span><span class="pill ${st[0]}">${st[1]}</span></div>
-        ${i.valor?`<div class="bar" style="height:4px;margin-top:6px"><i style="width:${pct}%"></i></div>`:''}</div></div>`}).join('')+`</div>`}
+        ${i.valor?`<div style="margin-top:6px">${stackBar(i.valor,pg,gd,4)}</div>`:''}</div></div>`}).join('')+`</div>`}
     if(!S.itens.length)html+=`<div class="empty">Nenhum gasto ainda. Toque em + para adicionar.</div>`;
   }else{
     const m=new Map();S.itens.forEach(i=>(i.pagamentos||[]).forEach(p=>{const k=p.mes||'';if(!m.has(k))m.set(k,[]);m.get(k).push({i,p})}));
     const keys=[...m.keys()].sort();
     const maxv=Math.max(1,...keys.map(k=>m.get(k).reduce((s,x)=>s+x.p.valor,0)));
-    html+=`<div class="card" style="margin-top:12px;overflow-x:auto"><div style="display:flex;align-items:flex-end;gap:6px;height:120px;min-width:${keys.length*34}px">${keys.map(k=>{const all=m.get(k),t=all.reduce((s,x)=>s+x.p.valor,0),pg=all.filter(x=>x.p.pago).reduce((s,x)=>s+x.p.valor,0);
-      return`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:28px"><div style="width:100%;height:${Math.max(3,t/maxv*92)}px;border-radius:5px;background:var(--accent-soft);position:relative;overflow:hidden" title="${mesLabel(k)}: ${brl(t)}"><i style="position:absolute;left:0;right:0;bottom:0;height:${t?pg/t*100:0}%;background:var(--primary)"></i></div><span class="tiny ${k===tm?'':'muted'}" style="${k===tm?'font-weight:700':''}">${mesLabel(k).split('/')[0]}</span></div>`}).join('')}</div>
-      <div class="row tiny muted" style="margin-top:8px;gap:14px"><span class="row" style="gap:5px"><i style="width:10px;height:10px;border-radius:3px;background:var(--primary)"></i>Pago</span><span class="row" style="gap:5px"><i style="width:10px;height:10px;border-radius:3px;background:var(--accent-soft)"></i>A pagar</span></div></div>`;
+    html+=`<div class="card" style="margin-top:12px;overflow-x:auto"><div style="display:flex;align-items:flex-end;gap:6px;height:120px;min-width:${keys.length*34}px">${keys.map(k=>{const all=m.get(k),t=all.reduce((s,x)=>s+x.p.valor,0),pg=all.filter(x=>x.p.pago).reduce((s,x)=>s+x.p.valor,0),gd=all.filter(x=>!x.p.pago&&x.p.guardado).reduce((s,x)=>s+x.p.valor,0);
+      return`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:28px"><div style="width:100%;height:${Math.max(3,t/maxv*92)}px;border-radius:5px;background:var(--accent-soft);position:relative;overflow:hidden" title="${mesLabel(k)}: ${brl(t)}"><i style="position:absolute;left:0;right:0;bottom:0;height:${t?pg/t*100:0}%;background:var(--primary)"></i><i style="position:absolute;left:0;right:0;bottom:${t?pg/t*100:0}%;height:${t?gd/t*100:0}%;background:var(--save)"></i></div><span class="tiny ${k===tm?'':'muted'}" style="${k===tm?'font-weight:700':''}">${mesLabel(k).split('/')[0]}</span></div>`}).join('')}</div>
+      <div class="legend tiny muted" style="margin-top:8px"><span><i style="background:var(--primary)"></i>Pago</span><span><i style="background:var(--save)"></i>Guardado</span><span><i style="background:var(--accent-soft)"></i>Falta guardar</span></div></div>`;
     for(const k of keys){const all=m.get(k),t=all.reduce((s,x)=>s+x.p.valor,0),pg=all.filter(x=>x.p.pago).reduce((s,x)=>s+x.p.valor,0);
       html+=`<div class="grouphead"><span class="g">${mesLongo(k)}${k===tm?' <span class="pill p-acc" style="font-family:var(--f-body)">este mês</span>':''}</span><span class="small num ${pg>=t?'muted':''}">${brl0(t)}</span></div><div class="list">`+
-      all.map(({i,p})=>`<div class="li ${p.pago?'done':''}"><button class="chk ${p.pago?'on':''}" data-paypay="${i.id}|${p.id}" aria-label="Pago">${p.pago?svg('tick',3):''}</button><div class="grow tap" data-item="${i.id}"><div class="t ellip">${esc(i.nome)}</div><div class="tiny muted">${esc(i.fornecedor||i.categoria)}</div></div><span class="num" style="font-weight:700">${brl(p.valor)}</span></div>`).join('')+`</div>`}
+      all.map(({i,p})=>`<div class="li ${p.pago?'done':''}">${chkPay(p,`data-paypay="${i.id}|${p.id}"`)}<div class="grow tap" data-item="${i.id}"><div class="t ellip">${esc(i.nome)}</div><div class="tiny muted">${esc(i.fornecedor||i.categoria)}</div></div>${!p.pago&&p.guardado?'<span class="pill p-save">Guardado</span>':''}<span class="num" style="font-weight:700">${brl(p.valor)}</span></div>`).join('')+`</div>`}
     if(!keys.length)html+=`<div class="empty">Nenhuma parcela programada.</div>`;
   }
   v.innerHTML=html}
@@ -628,7 +640,7 @@ document.addEventListener('click',e=>{const t=e.target.closest('button,[data-go]
   if(d.fin){sub.fin=d.fin;persistUi();render();return}
   if(d.fo){sub.forn=d.fo;persistUi();render();return}
   if(d.cf){sub.conv=d.cf;render();return}
-  if(d.paypay){const[iid,pid]=d.paypay.split('|');const i=findRec('itens',iid);const p=i&&i.pagamentos.find(x=>x.id===pid);if(p){p.pago=!p.pago;touch(i);save();render();toast(p.pago?'Marcado como pago':'Desmarcado')}return}
+  if(d.paypay){const[iid,pid]=d.paypay.split('|');const i=findRec('itens',iid);const p=i&&i.pagamentos.find(x=>x.id===pid);if(p){const m=cyclePay(p);touch(i);save();render();toast(m)}return}
   if(d.item){itemSheet(d.item);return}
   if(d.tg){const[k,id]=d.tg.split('|');const r=findRec('convidados',id);r[k]=!r[k];touch(r);save();render();return}
   if(d.rs){const r=findRec('convidados',d.rs);r.rsvp={pendente:'sim',sim:'nao',nao:'pendente'}[r.rsvp||'pendente'];touch(r);save();render();return}
